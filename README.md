@@ -64,14 +64,14 @@ int Attachrow(Olink p, CrossMatrix* a, int i, int j) {
 		p->right = a->mr[i];
 		a->mr[i] = p;
 	}
-	else if (a->mr[i]->j == j) {//重复输入元素的情况
+	else if (a->mr[i]->j == j) {//重复输入元素的情况(此时a->mr[i]肯定不为NULL)
 		printf("重复输入了元素！请确认后再输一次：\n");
 		return 1;
 	}
 	else {//查找应插入的位置注意此处与直接插的区别是辅助指针要指向目标结点的前驱
 		Olink tmp = NULL;
 		for (tmp = a->mr[i];tmp->right &&tmp->right->j < j;tmp = tmp->right);
-		if (tmp->j == j) {
+		if (tmp->right!=NULL&&tmp->right->j == j) {
 			printf("重复输入了元素！请确认后再输一次\n");
 			return 1;
 		}
@@ -84,18 +84,18 @@ int Attachrow(Olink p, CrossMatrix* a, int i, int j) {
 }
 int Attachcol(Olink p, CrossMatrix* a, int j, int i) {//此处参数表对读进的行列做了一个交换，复制上面的代码就少了一些修改工作。。
 
-	if (a->mc[i] == NULL || a->mc[i]->j > j) {//可以直接列插入的情况
+	if (a->mc[i] == NULL || a->mc[i]->i > j) {//可以直接列插入的情况
 		p->down= a->mc[i];
 		a->mc[i] = p;
 	}
-	else if (a->mc[i]->j == j) {//重复输入元素的情况
+	else if (a->mc[i]->i == j) {//重复输入元素的情况
 		printf("重复输入了元素！请确认后再输一次：\n");
 		return 1;
 	}
 	else {//查找应插入的位置注意此处与直接插的区别是辅助指针要指向目标结点的前驱
 		Olink tmp = NULL;
-		for (tmp = a->mc[i];tmp->down &&tmp->down->j < j;tmp = tmp->down);
-		if (tmp->j == j) {
+		for (tmp = a->mc[i];tmp->down &&tmp->down->i < j;tmp = tmp->down);
+		if (tmp->down!=NULL&&tmp->down->i == j) {
 			printf("重复输入了元素！请确认后再输一次\n");
 			return 1;
 		}
@@ -111,20 +111,23 @@ void Sum(CrossMatrix* a, CrossMatrix* b) {//因为有链表的插入操作，所
 		printf("两矩阵行，列数不同，不合法的加法");
 		return;
 	}
-	Olink ap = a->mr[1], bp = b->mr[1];//ap,bp分别是指向a,b矩阵的第一行头的指针
-	Olink pre = NULL;//ap指针的前置指针
+	Olink ap = a->mr[1], bp = b->mr[1];//ap,bp分别是指向a,b矩阵的第一行头的指针,这句其实没啥用
+	Olink pre = NULL;//ap指针的前置指针//这句也没啥用，与for循环开头的那段重复
 	Olink* up=(Olink*)malloc(((a->nu) + 1) * sizeof(Olink));//用于做ap顶置指针的预备指针列（因为ap上方的指针不好跟ap同时移动所以做一个指针列以随时使用）
-	for (int i = 0;i < a->nu;i++) {
+	for (int i = 0;i < a->nu+1;i++) {
 		up[i] = a->mc[i];
 	}
 	//开始对a，b中元素进行循环遍历做加法
 	for (int i = 1;i < (a->mu) + 1;i++) {//对行做遍历
+		bp = b->mr[i];
+		ap = a->mr[i];
+		pre = NULL;
 		while (bp != NULL) {//对b的列做遍历
-			Olink p = (Olink)malloc(sizeof(Node));
-			*p = *bp;//把bp所指内容复制到p所指结点中
+			Olink p = (Olink)malloc(sizeof(Node));//保存bp的临时结点
+			*p = *bp;  //把bp所指内容复制到p所指结点中。这个地方可能造成空间浪费（可以在直接加或者需要删除的的情况下释放p，但是我懒得弄了）
 			/* 情况1  */if (ap == NULL || ap->j > p->j) {//*p可以直接插入操作的情况
 				if (pre == NULL) {//此处是分类讨论的技巧，省代码了，但其实可读性变差
-					a->mr[i]->right = p;
+					a->mr[i] = p;
 				}
 				else {
 					pre->right = p;
@@ -136,12 +139,12 @@ void Sum(CrossMatrix* a, CrossMatrix* b) {//因为有链表的插入操作，所
 					a->mc[p->j] = p;
 				}
 				else {
-					for (;up[i]->down->i < i;up[i] = up[i]->down);//找到该插入的上方结点位置
-					p->down = up[i]->down;
-					up[i]->down = p;
+					for (;up[p->j]->down!=NULL&&up[p->j]->down->i < i;up[p->j] = up[p->j]->down);//找到该插入的上方结点位置
+					p->down = up[p->j]->down;
+					up[p->j]->down = p;
 				}//列插入完成，对bp移位
 				bp = bp->right;
-				*p = *bp;
+				
 			}
 
 			/*  情况2*/	else if (ap->j < p->j) {//ap需要继续向前移动
@@ -151,8 +154,7 @@ void Sum(CrossMatrix* a, CrossMatrix* b) {//因为有链表的插入操作，所
 			/*情况3  */	else if (ap->j == p->j) {//需要进行元素加法的情况
 				if (ap->e + p->e != 0) {//如果相加不为零，则可直接加
 					ap->e = ap->e + p->e;//加法完成，对bp移位
-					bp = bp->right;
-					*p = *bp;
+					bp = bp->right;	
 				}
 				else {//相加为零，进行删除操作
 					if (pre == NULL) {
@@ -161,22 +163,20 @@ void Sum(CrossMatrix* a, CrossMatrix* b) {//因为有链表的插入操作，所
 					else {
 						pre->right = ap->right;
 					}
-					Olink t = p;//为列断链加释放操作做铺垫
+					//为列断链加释放操作做铺垫
 					p = ap;
-					ap = ap->right;
+					ap = ap->right;//这里是让ap指向ap右侧结点，删除之前ap所指的结点（pre不用移动)
 					//进行列断链
 					if (a->mc[p->j]->i  == i) {//假如可以直接断链
 						a->mc[p->j] = a->mc[p->j]->down;
 					}
 					else {
-						for (;up[i]->down->i < i;up[i] = up[i]->down);//找到该位置上方结点的位置
-						up[i]->down = up[i]->down->down;
+						for (;up[p->j]->down->i < i;up[p->j] = up[p->j]->down);//找到该位置上方结点的位置
+						up[p->j]->down = up[p->j]->down->down;//在这里up[p->j]->down肯定不等NULL，因为相加成功了，肯定是有这个元素在的
 					}
-					free(t);
 					free(p);
 					//删除完成，对bp进行移位
 					bp = bp->right;
-					*p = *bp;
 
 				}
 			}
@@ -185,10 +185,12 @@ void Sum(CrossMatrix* a, CrossMatrix* b) {//因为有链表的插入操作，所
 	return ;
 }
 void Print(const CrossMatrix* a) {
-	Olink rp = a->mr[1];
-	for (int i = 1;i < (a->mu) + 1;i++) {
+	Olink rp = NULL;
+	for (int i = 1;i < (a->mu) + 1;i++) {//对行遍历
+		rp = a->mr[i];
 		while (rp != NULL) {
 			printf("(%d行,%d列,值：%d)\t", rp->i, rp->j, rp->e);
+			rp = rp->right;
 		}
 		printf("\n");
 	}return;
